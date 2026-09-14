@@ -1,0 +1,1122 @@
+openapi: 3.0.3
+info:
+  title: Asklane
+  version: 0.1.0
+  description: >-
+    Citizen inquiry and contact-deflection API with journey clocks, cited knowledge,
+    gateway-aware routing, translation, and a hard decision gate against automated
+    adverse determinations.
+  x-product-slug: ai-gov-asklane
+  x-source: ai-in-gov/deloitte-artificial_intelligence_for_citizen_services/
+servers:
+  - url: https://api.example.com
+tags:
+  - name: Journeys
+    description: Multichannel citizen journeys and inquiries
+  - name: Knowledge
+    description: Versioned knowledge articles and answers
+  - name: Forms
+    description: Form assistance sessions
+  - name: Routing
+    description: Legal-gateway request routing
+  - name: Translations
+    description: Translation jobs with human verification
+  - name: Decisions
+    description: Decision gate and reasons records
+  - name: Compliance
+    description: Consent, FOI export, and accessibility evidence
+paths:
+  /v1/journeys:
+    get:
+      operationId: listJourneys
+      tags: [Journeys]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, waiting_citizen, waiting_agent, resolved, escalated, clock_breached]
+      responses:
+        "200":
+          description: Journeys page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeJourney"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: startJourney
+      tags: [Journeys]
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JourneyCreate"
+      responses:
+        "201":
+          description: Journey started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeJourney"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /v1/journeys/{journeyId}:
+    parameters:
+      - $ref: "#/components/parameters/JourneyId"
+    get:
+      operationId: getJourney
+      tags: [Journeys]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: Journey
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeJourney"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/journeys/{journeyId}/inquiries:
+    parameters:
+      - $ref: "#/components/parameters/JourneyId"
+    post:
+      operationId: submitInquiry
+      tags: [Journeys]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InquiryCreate"
+      responses:
+        "201":
+          description: Inquiry accepted and classified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeInquiry"
+  /v1/journeys/{journeyId}/escalate:
+    parameters:
+      - $ref: "#/components/parameters/JourneyId"
+    post:
+      operationId: escalateJourney
+      tags: [Journeys]
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+                requestedBy:
+                  type: string
+                  enum: [citizen, agent, system]
+      responses:
+        "202":
+          description: Escalated to human queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeJourney"
+  /v1/knowledge/articles:
+    get:
+      operationId: listKnowledgeArticles
+      tags: [Knowledge]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Articles page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeKnowledgeArticle"
+    post:
+      operationId: createKnowledgeArticle
+      tags: [Knowledge]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeArticleCreate"
+      responses:
+        "201":
+          description: Article created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeKnowledgeArticle"
+  /v1/knowledge/articles/{articleId}/versions:
+    parameters:
+      - $ref: "#/components/parameters/ArticleId"
+    post:
+      operationId: publishKnowledgeVersion
+      tags: [Knowledge]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeVersion"
+      responses:
+        "201":
+          description: Version published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeKnowledgeVersion"
+  /v1/knowledge/answers:
+    post:
+      operationId: answerInquiry
+      tags: [Knowledge]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inquiryId]
+              properties:
+                inquiryId: { type: string }
+                locale: { type: string }
+      responses:
+        "200":
+          description: Cited answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeCitedAnswer"
+  /v1/forms/sessions:
+    post:
+      operationId: startFormAssistance
+      tags: [Forms]
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FormAssistanceSessionCreate"
+      responses:
+        "201":
+          description: Form assistance session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeFormAssistanceSession"
+  /v1/routing/assignments:
+    get:
+      operationId: listRouteAssignments
+      tags: [Routing]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Route assignments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeRouteAssignment"
+    post:
+      operationId: createRouteAssignment
+      tags: [Routing]
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RouteAssignmentCreate"
+      responses:
+        "201":
+          description: Routed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeRouteAssignment"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /v1/routing/gateways:
+    get:
+      operationId: listLegalGateways
+      tags: [Routing]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Legal gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeLegalGateway"
+  /v1/translations:
+    post:
+      operationId: createTranslationJob
+      tags: [Translations]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranslationJobCreate"
+      responses:
+        "201":
+          description: Translation job created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeTranslationJob"
+  /v1/translations/{jobId}/verify:
+    parameters:
+      - $ref: "#/components/parameters/TranslationJobId"
+    post:
+      operationId: verifyTranslation
+      tags: [Translations]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [verified, rejected]
+                editorNotes: { type: string }
+                revisedText: { type: string }
+      responses:
+        "200":
+          description: Verification recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeTranslationJob"
+  /v1/decisions/gate-events:
+    post:
+      operationId: evaluateDecisionGate
+      tags: [Decisions]
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecisionGateRequest"
+      responses:
+        "200":
+          description: Gate result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeDecisionGateEvent"
+        "403":
+          description: Automated adverse decision blocked
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/decisions/reasons:
+    get:
+      operationId: listReasonsRecords
+      tags: [Decisions]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: journeyId
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Reasons records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeReasonsRecord"
+    post:
+      operationId: createReasonsRecord
+      tags: [Decisions]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReasonsRecordCreate"
+      responses:
+        "201":
+          description: Reasons recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeReasonsRecord"
+  /v1/compliance/consent:
+    post:
+      operationId: recordConsent
+      tags: [Compliance]
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentRecord"
+      responses:
+        "201":
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeConsentRecord"
+  /v1/compliance/foi-exports:
+    post:
+      operationId: createFoIExport
+      tags: [Compliance]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoIExportCreate"
+      responses:
+        "202":
+          description: FOI export accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeFoIExport"
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    JourneyId:
+      name: journeyId
+      in: path
+      required: true
+      schema: { type: string }
+    ArticleId:
+      name: articleId
+      in: path
+      required: true
+      schema: { type: string }
+    TranslationJobId:
+      name: jobId
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    UnprocessableEntity:
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+
+    ResponseMeta:
+      type: object
+      required: [requestId, timestamp]
+      properties:
+        requestId: { type: string }
+        timestamp: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+
+    Agency:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        jurisdiction: { type: string }
+    Channel:
+      type: object
+      required: [id, type]
+      properties:
+        id: { type: string }
+        type:
+          type: string
+          enum: [web, mobile, voice, chat, assisted]
+        accessibilityConforming: { type: boolean }
+        languages:
+          type: array
+          items: { type: string }
+    Journey:
+      type: object
+      required: [id, agencyId, channelId, status, serviceStandardDueAt]
+      properties:
+        id: { type: string }
+        agencyId: { type: string }
+        channelId: { type: string }
+        status:
+          type: string
+          enum: [open, waiting_citizen, waiting_agent, resolved, escalated, clock_breached]
+        citizenRef: { type: string }
+        serviceStandardDueAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    JourneyCreate:
+      type: object
+      required: [agencyId, channelId]
+      properties:
+        agencyId: { type: string }
+        channelId: { type: string }
+        citizenRef: { type: string }
+        locale: { type: string }
+        serviceStandardHours: { type: number }
+    Inquiry:
+      type: object
+      required: [id, journeyId, category, text]
+      properties:
+        id: { type: string }
+        journeyId: { type: string }
+        category:
+          type: string
+          enum: [answer, form_search, route, translate, draft]
+        text: { type: string }
+        classifiedAt: { type: string, format: date-time }
+    InquiryCreate:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string }
+        locale: { type: string }
+        hintedCategory:
+          type: string
+          enum: [answer, form_search, route, translate, draft]
+    KnowledgeArticle:
+      type: object
+      required: [id, title, ownerId, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        ownerId: { type: string }
+        status:
+          type: string
+          enum: [draft, published, retired]
+    KnowledgeArticleCreate:
+      type: object
+      required: [title, ownerId]
+      properties:
+        title: { type: string }
+        ownerId: { type: string }
+    KnowledgeVersion:
+      type: object
+      required: [id, articleId, version, body, effectiveFrom]
+      properties:
+        id: { type: string }
+        articleId: { type: string }
+        version: { type: string }
+        body: { type: string }
+        effectiveFrom: { type: string, format: date-time }
+        effectiveTo: { type: string, format: date-time }
+        sourcePolicyRef: { type: string }
+    CitedAnswer:
+      type: object
+      required: [inquiryId, answerText, articleVersionId]
+      properties:
+        inquiryId: { type: string }
+        answerText: { type: string }
+        articleVersionId: { type: string }
+        citationUrl: { type: string, format: uri }
+        confidence: { type: number, format: float }
+    FormAssistanceSession:
+      type: object
+      required: [id, journeyId, formId, status]
+      properties:
+        id: { type: string }
+        journeyId: { type: string }
+        formId: { type: string }
+        status:
+          type: string
+          enum: [in_progress, ready_for_submit, submitted, abandoned]
+        populatedFields:
+          type: object
+          additionalProperties: { type: string }
+        consentBasis: { type: string }
+    FormAssistanceSessionCreate:
+      type: object
+      required: [journeyId, formId]
+      properties:
+        journeyId: { type: string }
+        formId: { type: string }
+        consentBasis: { type: string }
+    LegalGateway:
+      type: object
+      required: [id, name, legalReference]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        legalReference: { type: string }
+        receivingOfficeId: { type: string }
+    RouteAssignment:
+      type: object
+      required: [id, journeyId, gatewayId, status]
+      properties:
+        id: { type: string }
+        journeyId: { type: string }
+        gatewayId: { type: string }
+        receivingOfficeId: { type: string }
+        status:
+          type: string
+          enum: [pending, accepted, rejected, misrouted]
+        packetSummary: { type: string }
+    RouteAssignmentCreate:
+      type: object
+      required: [journeyId, gatewayId]
+      properties:
+        journeyId: { type: string }
+        gatewayId: { type: string }
+        packetSummary: { type: string }
+    TranslationJob:
+      type: object
+      required: [id, sourceLang, targetLang, status, highStakes]
+      properties:
+        id: { type: string }
+        journeyId: { type: string }
+        sourceLang: { type: string }
+        targetLang: { type: string }
+        sourceText: { type: string }
+        machineText: { type: string }
+        verifiedText: { type: string }
+        highStakes: { type: boolean }
+        status:
+          type: string
+          enum: [queued, machine_done, verified, rejected]
+    TranslationJobCreate:
+      type: object
+      required: [sourceLang, targetLang, sourceText, highStakes]
+      properties:
+        journeyId: { type: string }
+        sourceLang: { type: string }
+        targetLang: { type: string }
+        sourceText: { type: string }
+        highStakes: { type: boolean }
+    DraftSuggestion:
+      type: object
+      required: [id, journeyId, draftText]
+      properties:
+        id: { type: string }
+        journeyId: { type: string }
+        draftText: { type: string }
+        citedVersionIds:
+          type: array
+          items: { type: string }
+    IdentityCheck:
+      type: object
+      required: [id, journeyId, result]
+      properties:
+        id: { type: string }
+        journeyId: { type: string }
+        result:
+          type: string
+          enum: [passed, failed, assisted_recovery]
+        method: { type: string }
+    DecisionGateEvent:
+      type: object
+      required: [id, journeyId, outcome, adverse]
+      properties:
+        id: { type: string }
+        journeyId: { type: string }
+        adverse: { type: boolean }
+        outcome:
+          type: string
+          enum: [allowed_human, blocked_automated, deferred]
+        humanApproverId: { type: string }
+        detail: { type: string }
+    DecisionGateRequest:
+      type: object
+      required: [journeyId, proposedAction, adverse]
+      properties:
+        journeyId: { type: string }
+        proposedAction: { type: string }
+        adverse: { type: boolean }
+        humanApproverId: { type: string }
+    ReasonsRecord:
+      type: object
+      required: [id, journeyId, reasonsText, decidedBy]
+      properties:
+        id: { type: string }
+        journeyId: { type: string }
+        reasonsText: { type: string }
+        decidedBy: { type: string }
+        knowledgeVersionIds:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+    ReasonsRecordCreate:
+      type: object
+      required: [journeyId, reasonsText, decidedBy]
+      properties:
+        journeyId: { type: string }
+        reasonsText: { type: string }
+        decidedBy: { type: string }
+        knowledgeVersionIds:
+          type: array
+          items: { type: string }
+    ConsentRecord:
+      type: object
+      required: [id, subjectRef, purpose, status]
+      properties:
+        id: { type: string }
+        subjectRef: { type: string }
+        purpose: { type: string }
+        status:
+          type: string
+          enum: [granted, denied, withdrawn]
+        recordedAt: { type: string, format: date-time }
+    ServiceStandardClock:
+      type: object
+      required: [journeyId, dueAt, state]
+      properties:
+        journeyId: { type: string }
+        dueAt: { type: string, format: date-time }
+        state:
+          type: string
+          enum: [on_track, at_risk, breached]
+    FeedbackSignal:
+      type: object
+      required: [id, inquiryId, helpful]
+      properties:
+        id: { type: string }
+        inquiryId: { type: string }
+        helpful: { type: boolean }
+        secondaryUseAllowed: { type: boolean }
+    FoIExport:
+      type: object
+      required: [id, status, requestedBy]
+      properties:
+        id: { type: string }
+        journeyIds:
+          type: array
+          items: { type: string }
+        status:
+          type: string
+          enum: [queued, ready, delivered]
+        requestedBy: { type: string }
+        downloadUrl: { type: string, format: uri }
+    FoIExportCreate:
+      type: object
+      required: [journeyIds, requestedBy]
+      properties:
+        journeyIds:
+          type: array
+          items: { type: string }
+        requestedBy: { type: string }
+
+    DataEnvelopeJourney:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Journey"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeJourney:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Journey"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeInquiry:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Inquiry"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeInquiry:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Inquiry"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeKnowledgeArticle:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/KnowledgeArticle"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeKnowledgeArticle:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/KnowledgeArticle"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeKnowledgeVersion:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/KnowledgeVersion"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeKnowledgeVersion:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/KnowledgeVersion"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeCitedAnswer:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/CitedAnswer"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeCitedAnswer:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/CitedAnswer"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeFormAssistanceSession:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/FormAssistanceSession"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeFormAssistanceSession:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/FormAssistanceSession"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeRouteAssignment:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/RouteAssignment"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeRouteAssignment:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/RouteAssignment"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeLegalGateway:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/LegalGateway"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeLegalGateway:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/LegalGateway"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeTranslationJob:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/TranslationJob"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeTranslationJob:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/TranslationJob"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeDecisionGateEvent:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/DecisionGateEvent"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeDecisionGateEvent:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/DecisionGateEvent"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeReasonsRecord:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ReasonsRecord"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeReasonsRecord:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ReasonsRecord"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeConsentRecord:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ConsentRecord"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeConsentRecord:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ConsentRecord"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
+
+    DataEnvelopeFoIExport:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/FoIExport"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeFoIExport:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/FoIExport"
+            nextCursor: { type: string }
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+
